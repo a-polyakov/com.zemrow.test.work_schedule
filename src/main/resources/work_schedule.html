@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/html">
+<head>
+    <meta charset="UTF-8">
+    <title>График работ</title>
+    <style type="text/css">
+        html, body {
+            margin: 0;
+        }
+
+        table {
+            border-collapse: collapse;
+        }
+
+        table, tr, dt {
+            /*padding: 0;*/
+            /*margin: 0;*/
+        }
+
+        td {
+            white-space: nowrap;
+        }
+
+        thead {
+            text-align: center;
+        }
+
+        .fix_head {
+            position: fixed;
+            top: 0;
+            left: 0;
+            background: white;
+        }
+
+        .toolbar_panel {
+            height: 80px;
+            margin: 0px 10px 0px;
+        }
+
+        .last_row {
+            height: 100%;
+        }
+
+        .schedule_head {
+            height: 45px;
+            min-width: 1774px;
+            margin: 0px 10px 0px;
+            border: 2px solid;
+        }
+
+        .user_id {
+            width: 50px;
+            text-align: center;
+        }
+
+        .col_full_name {
+            width: 150px;
+        }
+
+        .col_day1, .col_day2, .col_day3, .col_day4, .col_day5, .col_day6, .col_day7, .col_day8, .col_day9, .col_day10,
+        .col_day11, .col_day12, .col_day13, .col_day14, .col_day15, .col_day16, .col_day17, .col_day18, .col_day19, .col_day20,
+        .col_day21, .col_day22, .col_day23, .col_day24, .col_day25, .col_day26, .col_day27, .col_day28, .col_day29, .col_day30,
+        .col_day31 {
+            width: 40px;
+        }
+
+        .sum_hours {
+            width: 40px;
+        }
+
+        .norm_hours {
+            width: 50px;
+        }
+
+        .over_hours {
+            width: 90px;
+        }
+
+        .night_hours {
+            width: 40px;
+        }
+
+        .schedule_head td {
+            border: 1px solid black;
+        }
+
+        .weekend {
+            color: red;
+        }
+
+        .schedule {
+            margin: 123px 10px 10px;
+            min-width: 1774px;
+            border: 2px solid black;
+        }
+
+        .schedule > tr > td {
+            border: 1px solid black;
+        }
+
+        .work {
+            background: #88FF88;
+        }
+
+        .vacation {
+            background: #FFFF88;
+        }
+
+        .unpaid {
+            background: #FF8888;
+        }
+
+        .work.hospital {
+            background: repeating-linear-gradient(
+                    0deg,
+                    #8888FF,
+                    #8888FF 1px,
+                    #88FF88 1px,
+                    #88FF88 2px
+            );
+        }
+
+        .hospital {
+            background: #8888FF;
+        }
+
+        .over_hours_minus {
+            background: #88FF88;
+        }
+
+        .over_hours_plus {
+            background: #FF8888;
+        }
+
+        .time0_10, .time10_19, .time19_22, .time22_24 {
+            cursor: pointer;
+        }
+
+        #loading {
+            display: none;
+            position: absolute;
+            top: 0px;
+            left: 0px;
+            width: 100%;
+            height: 100%;
+            background-color: white;
+            opacity: 0.5;
+        }
+
+        #login {
+            display: none;
+            position: absolute;
+            top: 0px;
+            left: 0px;
+            width: 100%;
+            height: 100%;
+            background-color: white;
+            opacity: 0.9;
+        }
+
+        #user_menu {
+            display: none;
+            position: absolute;
+        }
+    </style>
+    <script type="text/javascript" src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <script type="text/javascript" src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+    <script type="text/javascript">
+
+        $( document ).ajaxError(function( event, jqxhr, settings, exception ) {
+            if ( jqxhr.status== 401 ) {
+                loadingHide();
+                $( "#login" ).show();
+            }
+        });
+
+        var api = {
+            user_session:{
+                login: function(username, password, success){
+                    $.ajax({
+                        url: "login",
+                        dataType: "json",
+                        data: JSON.stringify({username: username, password: password}),
+                        type: "POST",
+                        success: success
+                    });
+                }
+            },
+            work_schedule: {
+                full: function (year, month, success) {
+                    $.ajax({
+                        url: "work_schedule/" + year + "/" + month,
+                        dataType: "json",
+                        success: success
+                    });
+                },
+                insert: function (userId, startTime, endTime, success) {
+                    $.ajax({
+                        url: "work_schedule",
+                        dataType: "json",
+                        data: JSON.stringify({userId: userId, startTime: startTime, endTime: endTime}),
+                        type: "POST",
+                        success: success
+                    });
+                },
+                delete: function (id, success) {
+                    $.ajax({
+                        url: "work_schedule/" + id,
+                        type: "DELETE",
+                        success: success
+                    });
+                }
+            },
+            vacation: {
+                insert: function (userId, startTime, endTime, type, success) {
+                    $.ajax({
+                        url: "vacation",
+                        dataType: "json",
+                        data: JSON.stringify({userId: userId, startTime: startTime, endTime: endTime, type: type}),
+                        type: "POST",
+                        success: success
+                    });
+                },
+                delete: function (id, success) {
+                    $.ajax({
+                        url: "vacation/" + id,
+                        type: "DELETE",
+                        success: success
+                    });
+                }
+            }
+        }
+
+        function onload() {
+            var date = new Date();
+            var year = date.getFullYear();
+            var month = date.getMonth() + 1;
+            $("select[name='year']").val(year);
+            $("select[name='month']").val(month);
+            changeMonth();
+            var supportPageOffset = window.pageXOffset !== undefined;
+            var isCSS1Compat = ((document.compatMode || "") === "CSS1Compat");
+            window.addEventListener("scroll", function (e) {
+                var x = supportPageOffset ? window.pageXOffset : isCSS1Compat ? document.documentElement.scrollLeft : document.body.scrollLeft;
+                var y = supportPageOffset ? window.pageYOffset : isCSS1Compat ? document.documentElement.scrollTop : document.body.scrollTop;
+                $(".fix_head").css({left: -x + "px"});
+            });
+        }
+
+        var normHours = 0;
+
+        function changeMonth() {
+            loadingShow();
+            $(".schedule").html("");
+            var year = $("select[name='year']").val();
+            var month = $("select[name='month']").val();
+            $(".xlsx").attr("href", "export/" + year + "/" + month)
+            api.work_schedule.full(year, month, function (data) {
+                    var firstDayOfWeek = new Date(year, month - 1, 1).getDay();
+                    if (firstDayOfWeek == 0) {
+                        firstDayOfWeek = 7;
+                    }
+                    var dayOfWeek = firstDayOfWeek;
+                    var lastDay = new Date(year, month, 0).getDate();
+                    normHours = 0;
+                    // TODO holidays
+                    for (var i = 1; i <= lastDay; i++) {
+                        var td = $("td.day_of_week.col_day" + i);
+                        if (dayOfWeek < 6) {
+                            td.removeClass("weekend");
+                            normHours += 8;
+                        } else {
+                            td.addClass("weekend");
+                        }
+                        td.text(dayOfWeekToString(dayOfWeek));
+                        dayOfWeek++;
+                        if (dayOfWeek > 7) {
+                            dayOfWeek = 1;
+                        }
+
+                        $(".col_day" + i).show();
+                    }
+                    for (var i = lastDay + 1; i <= 31; i++) {
+                        $(".col_day" + i).hide();
+                    }
+                    var rows = "";
+                    for (var i = 0; i < data.users.length; i++) {
+                        var user = data.users[i];
+                        var sum_hours = 0;
+
+                        var night_hours = 0;
+                        var normHoursForUser = normHours;
+                        rows += "<tr>";
+                        rows += "<td class='user_id'>" + user.userId + "</td>";
+                        rows += "<td class='full_name col_full_name'><a href='#' onclick='userMenuClick(this)'>" + user.fullName + "</a></td>";
+
+                        dayOfWeek = firstDayOfWeek;
+                        for (var j = 1; j <= lastDay; j++) {
+                            var workTime0_10 = {time: new Date(year, month - 1, j, 5).getTime()};
+                            var workTime10_19 = {time: new Date(year, month - 1, j, 13).getTime()};
+                            var workTime19_22 = {time: new Date(year, month - 1, j, 20).getTime()};
+                            var workTime22_24 = {time: new Date(year, month - 1, j, 23).getTime()};
+                            var sumInDay = 0;
+                            for (var workTime of user.works) {
+                                if (workTime.startTime <= workTime0_10.time && workTime.endTime >= workTime0_10.time) {
+                                    workTime0_10.id = workTime.workScheduleId;
+                                    sumInDay += 10;
+                                    sum_hours += 10;
+                                    night_hours += 6;
+                                }
+                                if (workTime.startTime <= workTime10_19.time && workTime.endTime >= workTime10_19.time) {
+                                    workTime10_19.id = workTime.workScheduleId;
+                                    sumInDay += 8;
+                                    sum_hours += 8;
+                                }
+                                if (workTime.startTime <= workTime19_22.time && workTime.endTime >= workTime19_22.time) {
+                                    workTime19_22.id = workTime.workScheduleId;
+                                    sumInDay += 4;
+                                    sum_hours += 4;
+                                }
+                                if (workTime.startTime <= workTime22_24.time && workTime.endTime >= workTime22_24.time) {
+                                    workTime22_24.id = workTime.workScheduleId;
+                                    sumInDay += 2;
+                                    sum_hours += 2;
+                                    night_hours += 2;
+                                }
+                                if (sumInDay > 12) {
+                                    sum_hours -= 0.5;
+                                }
+                            }
+                            var vacation = {};
+                            for (var vacationTime of user.vacationList) {
+                                if (vacationTime.startTime <= workTime10_19.time && vacationTime.endTime >= workTime10_19.time) {
+                                    vacation.id = vacationTime.vacationId;
+                                    vacation.type = vacationTime.type;
+                                    if (dayOfWeek < 6) {
+                                        normHoursForUser -= 8;
+                                    }
+                                }
+                            }
+
+                            rows += "<td class='col_day" + j;
+                            if (dayOfWeek >= 6) {
+                                rows += " weekend";
+                            }
+                            rows += "'>\n";
+                            rows += "    <table>\n";
+                            rows += "        <tbody>\n";
+                            rows += dayPart(workTime0_10, vacation, "time0_10", "00-10");
+                            rows += dayPart(workTime10_19, vacation, "time10_19", "10-19");
+                            rows += dayPart(workTime19_22, vacation, "time19_22", "19-22");
+                            rows += dayPart(workTime22_24, vacation, "time22_24", "22-24");
+                            rows += "        </tbody>\n";
+                            rows += "    </table>\n";
+                            rows += "</td>";
+
+                            dayOfWeek++;
+                            if (dayOfWeek > 7) {
+                                dayOfWeek = 1;
+                            }
+                        }
+                        rows += "<td class='sum_hours'>" + sum_hours + "</td>";
+                        rows += "<td class='norm_hours'>" + normHoursForUser + "</td>";
+                        rows += "<td class='over_hours";
+                        var over_hours = sum_hours - normHoursForUser;
+                        if (over_hours > 0) {
+                            rows += " over_hours_plus";
+                        } else if (over_hours < 0) {
+                            rows += " over_hours_minus";
+                        }
+                        rows += "'>" + over_hours + "</td>";
+                        rows += "<td class='night_hours'>" + night_hours + "</td>";
+                        rows += "</tr>";
+
+                    }
+                    $(".schedule").html(rows);
+                    loadingHide();
+                }
+            );
+        }
+
+        function dayPart(workTime, vacation, cssClass, title) {
+            var rows = "<tr>";
+            rows += "<td class='" + cssClass;
+            if (workTime.id) {
+                rows += " work";
+            } else if (vacation.type === "VACATION") {
+                rows += " vacation";
+            } else if (vacation.type === "UNPAID") {
+                rows += " unpaid";
+            }
+            if (vacation.type === "HOSPITAL") {
+                rows += " hospital";
+            }
+            rows += "' onclick='scheduleClickCell(this)'";
+            if (workTime.id) {
+                rows += " workScheduleId='" + workTime.id + "'";
+            }
+            if (vacation.id) {
+                rows += " vacationId='" + vacation.id + "'";
+            }
+
+            rows += ">" + title + "</td>";
+            rows += "</tr>";
+            return rows;
+        }
+
+        function dayOfWeekToString(days) {
+            switch (days) {
+                case 1:
+                    return "Пн";
+                case 2:
+                    return "Вт";
+                case 3:
+                    return "Ср";
+                case 4:
+                    return "Чт";
+                case 5:
+                    return "Пт";
+                case 6:
+                    return "Сб";
+                case 7:
+                    return "Вс";
+            }
+        }
+
+        var brushType = 'work';
+
+        function setBrushType(type) {
+            if (type === 'work') {
+                $('.brush_size_panel').show();
+            } else {
+                $('.brush_size_panel').hide();
+            }
+            brushType = type;
+        }
+
+        var brushSize = 8;
+
+
+        function userMenuClick(a){
+            var userId=$(a).parent()/*td*/.parent()/*tr*/.find(".user_id").text();
+            console.log(userId);
+            $("#user_menu").show().position
+        }
+
+        function loginClick(){
+            var login=$("#login input[name='login']").val();
+            var password=$("#login input[name='password']").val();
+            api.user_session.login(login, password, function (){
+                changeMonth();
+                $('#login').animate({opacity: 'hide'}, 300)
+            } );
+        }
+
+        function scheduleClickCell(sourceTd) {
+            var td = $(sourceTd);
+            var day = td.parent()/*tr*/.parent()/*tbody*/.find("td");
+            switch (brushType) {
+                case 'clean':
+                    deleteWorkDay(day);
+                    var vacationId = td.attr("vacationId");
+                    if (vacationId) {
+                        loadingShow();
+                        api.vacation.delete(vacationId, function () {
+                            var tdList = $("td[vacationId='" + vacationId + "']");
+                            tdList.removeClass("vacation unpaid hospital");
+                            tdList.removeAttr("vacationId");
+                            loadingHide();
+                        });
+                    }
+                    break;
+                case 'work':
+                    deleteVacationDay(day);
+                    switch (brushSize) {
+                        case 8:
+                        case "8":
+                            loadingShow();
+                            var dto = getUserPeriod(td, 10, 9);
+                            api.work_schedule.insert(dto.userId, dto.startTime, dto.endTime, function (data) {
+                                var dayPart = td.parent()/*tr*/.parent()/*tbody*/.find(".time10_19");
+                                dayPart.attr("workScheduleId", data.id);
+                                dayPart.addClass(brushType);
+                                solveSumColumn(td);
+                                loadingHide();
+                            });
+                            break;
+                        case 12:
+                        case "12":
+                            if (td.hasClass("time0_10")) {
+                                loadingShow();
+                                var prevDay = td.parent()/*tr*/.parent()/*tbody*/.parent()/*table*/.parent()/*td*/.prev().find(".time22_24");
+                                var dto;
+                                if (prevDay.length) {
+                                    dto = getUserPeriod(prevDay, 22, 12);
+                                } else {
+                                    dto = getUserPeriod(td, 0, 10);
+                                }
+                                api.work_schedule.insert(dto.userId, dto.startTime, dto.endTime, function (data) {
+                                    td.addClass(brushType);
+                                    td.attr("workScheduleId", data.id);
+                                    prevDay.addClass(brushType);
+                                    prevDay.attr("workScheduleId", data.id);
+                                    solveSumColumn(td);
+                                    loadingHide();
+                                });
+                            } else if (td.hasClass("time10_19") || td.hasClass("time19_22")) {
+                                loadingShow();
+                                var dto = getUserPeriod(td, 10, 12);
+                                api.work_schedule.insert(dto.userId, dto.startTime, dto.endTime, function (data) {
+                                    var dayPart = td.parent()/*tr*/.parent()/*tbody*/.find(".time10_19,.time19_22");
+                                    dayPart.addClass(brushType);
+                                    dayPart.attr("workScheduleId", data.id);
+                                    solveSumColumn(td);
+                                    loadingHide();
+                                });
+                            } else if (td.hasClass("time22_24")) {
+                                loadingShow();
+                                var dto = getUserPeriod(td, 22, 12);
+                                api.work_schedule.insert(dto.userId, dto.startTime, dto.endTime, function (data) {
+                                    td.addClass(brushType);
+                                    td.attr("workScheduleId", data.id);
+                                    var dayPart = td.parent()/*tr*/.parent()/*tbody*/.parent()/*table*/.parent()/*td*/.next().find(".time0_10");
+                                    dayPart.addClass(brushType);
+                                    dayPart.attr("workScheduleId", data.id);
+                                    solveSumColumn(td);
+                                    loadingHide();
+                                });
+                            }
+                            break;
+                        case 24:
+                        case "24":
+                            if (td.hasClass("time0_10")) {
+                                loadingShow();
+                                var prevDay = td.parent()/*tr*/.parent()/*tbody*/.parent()/*table*/.parent()/*td*/.prev().find(".time10_19,.time19_22,.time22_24");
+                                var dto;
+                                if (prevDay.length) {
+                                    dto = getUserPeriod($(prevDay[0]), 10, 24);
+                                } else {
+                                    dto = getUserPeriod(td, 0, 10);
+                                }
+                                api.work_schedule.insert(dto.userId, dto.startTime, dto.endTime, function (data) {
+                                    td.addClass(brushType);
+                                    td.attr("workScheduleId", data.id);
+                                    prevDay.addClass(brushType);
+                                    prevDay.attr("workScheduleId", data.id);
+                                    solveSumColumn(td);
+                                    loadingHide();
+                                });
+                            } else if (td.hasClass("time10_19") || td.hasClass("time19_22") || td.hasClass("time22_24")) {
+                                loadingShow();
+                                var dto = getUserPeriod(td, 10, 24);
+                                api.work_schedule.insert(dto.userId, dto.startTime, dto.endTime, function (data) {
+                                    var partDay = td.parent()/*tr*/.parent()/*tbody*/.find(".time10_19,.time19_22,.time22_24");
+                                    partDay.addClass(brushType);
+                                    partDay.attr("workScheduleId", data.id);
+                                    var partDay = td.parent()/*tr*/.parent()/*tbody*/.parent()/*table*/.parent()/*td*/.next().find(".time0_10");
+                                    partDay.addClass(brushType);
+                                    partDay.attr("workScheduleId", data.id);
+                                    solveSumColumn(td);
+                                    loadingHide();
+                                });
+                            }
+                            break;
+                    }
+                    break;
+                case 'vacation':
+                    deleteWorkDay(day);
+
+                    //TODO
+                    day.removeClass("unpaid hospital");
+
+                    loadingShow();
+                    var dto = getUserPeriod(td, 0, 24);
+                    api.vacation.insert(dto.userId, dto.startTime, dto.endTime, "VACATION", function (data) {
+                        day.addClass(brushType);
+                        day.attr("vacationId", data.id);
+                        solveSumColumn(td);
+                        loadingHide();
+                    });
+                    break;
+                case 'unpaid':
+                    deleteWorkDay(day);
+                    //TODO
+                    day.removeClass("vacation hospital");
+                    loadingShow();
+                    var dto = getUserPeriod(td, 0, 24);
+                    api.vacation.insert(dto.userId, dto.startTime, dto.endTime, "UNPAID", function (data) {
+                        day.addClass(brushType);
+                        day.attr("vacationId", data.id);
+                        solveSumColumn(td);
+                        loadingHide();
+                    });
+                    break;
+                case 'hospital':
+                    //TODO
+                    day.removeClass("unpaid vacation");
+                    loadingShow();
+                    var dto = getUserPeriod(td, 0, 24);
+                    api.vacation.insert(dto.userId, dto.startTime, dto.endTime, "HOSPITAL", function (data) {
+                        day.addClass(brushType);
+                        day.attr("vacationId", data.id);
+                        solveSumColumn(td);
+                        loadingHide();
+                    });
+                    break;
+            }
+        }
+
+        function deleteWorkDay(day) {
+            var workScheduleIdSet = new Set();
+            day.each(function () {
+                var workScheduleId = $(this).attr("workScheduleId");
+                if (workScheduleId) {
+                    workScheduleIdSet.add(workScheduleId);
+                }
+            });
+            for (var workScheduleId of workScheduleIdSet) {
+                loadingShow();
+                api.work_schedule.delete(workScheduleId, function () {
+                    var tdList = $("td[workScheduleId='" + workScheduleId + "']");
+                    tdList.removeClass("work");
+                    tdList.removeAttr("workScheduleId");
+                    loadingHide();
+                })
+            }
+        }
+
+        function deleteVacationDay(day) {
+            var vacationIdSet = new Set();
+            day.each(function () {
+                var vacationId = $(this).attr("vacationId");
+                if (vacationId) {
+                    vacationIdSet.add(vacationId);
+                }
+            });
+            for (var vacationId of vacationIdSet) {
+                loadingShow();
+                api.vacation.delete(vacationId, function () {
+                    var tdList = $("td[vacationId='" + vacationId + "']");
+                    tdList.removeClass("vacation unpaid hospital");
+                    tdList.removeAttr("vacationId");
+                    loadingHide();
+                })
+            }
+        }
+
+        function getUserPeriod(td, startHours, delayHours) {
+            var userId = td.parent()/*tr*/.parent()/*tbody*/.parent()/*table*/.parent()/*td*/.parent()/*tr*/.find("td.user_id").text();
+            var year = $("select[name='year']").val();
+            var month = $("select[name='month']").val();
+            var d = td.parent()/*tr*/.parent()/*tbody*/.parent()/*table*/.parent()/*td*/.attr('class').replace('weekend', '').trim().substr(7);
+            var startTime = new Date(year, month - 1, d, startHours).getTime();
+            var endTime = startTime + delayHours * 60 * 60 * 1000;
+            return {userId: userId, startTime: startTime, endTime: endTime};
+        }
+
+        function solveSumColumn(td) {
+            var userRow = td.parent()/*tr*/.parent()/*tbody*/.parent()/*table*/.parent()/*td*/.parent();
+            var sum = userRow.find('.time0_10.work').length * 10;
+            sum += userRow.find('.time10_19.work').length * 8;
+            sum += userRow.find('.time19_22.work').length * 4;
+            sum += userRow.find('.time22_24.work').length * 2;
+            sum -= userRow.find('td:has(.time19_22.work):has(.time22_24.work)').length * 0.5;
+            var night_hours = userRow.find('.time0_10.work').length * 6;
+            night_hours += userRow.find('.time22_24.work').length * 2;
+            userRow.find('td.sum_hours').text(sum);
+            var normHoursForUser = normHours - userRow.find('.time10_19.vacation,.time10_19.unpaid,.time10_19.hospital').length * 8
+                + userRow.find('.weekend .time10_19.vacation,.weekend .time10_19.unpaid,.weekend .time10_19.hospital').length * 8;
+            userRow.find('td.norm_hours').text(normHoursForUser);
+            var over_hours = sum - normHoursForUser;
+            var overHoursTd = userRow.find('td.over_hours');
+            overHoursTd.text(over_hours);
+            overHoursTd.removeClass("over_hours_plus over_hours_minus");
+            if (over_hours > 0) {
+                overHoursTd.addClass("over_hours_plus");
+            } else if (over_hours < 0) {
+                overHoursTd.addClass("over_hours_minus");
+            }
+            userRow.find('td.night_hours').text(night_hours);
+        }
+
+        var loadingIndex = 0;
+
+        function loadingShow(el) {
+            var loading = $('#loading');
+            var top = 0;
+            var left = 0;
+            var width = '100%';
+            var height = '100%';
+            if (el) {
+                top = el.offset().top;
+                left = el.offset().left;
+                width = el.width();
+                height = el.height();
+            }
+            loading.animate({opacity: 'show', top: top, left: left, width: width, height: height}, 100);
+            loadingIndex++;
+        }
+
+        function loadingHide() {
+            loadingIndex--;
+            if (loadingIndex == 0) {
+                $('#loading').animate({opacity: 'hide'}, 200);
+            }
+        }
+
+    </script>
+</head>
+<body onload="onload()">
+<div class="fix_head">
+    <table class="toolbar_panel">
+        <tbody>
+        <tr>
+            <td>График</td>
+            <td>
+                <select name="year">
+                    <option value="2018">2018</option>
+                    <option value="2019">2019</option>
+                    <option value="2020">2020</option>
+                    <option value="2021">2021</option>
+                </select>
+            </td>
+            <td>
+                <select name="month" onchange="changeMonth()">
+                    <option value="1">Январь</option>
+                    <option value="2">Февраль</option>
+                    <option value="3">Март</option>
+                    <option value="4">Апрель</option>
+                    <option value="5">Май</option>
+                    <option value="6">Июнь</option>
+                    <option value="7">Июль</option>
+                    <option value="8">Август</option>
+                    <option value="9">Сентябрь</option>
+                    <option value="9">Сентябрь</option>
+                    <option value="10">Октябрь</option>
+                    <option value="11">Ноябрь</option>
+                    <option value="12">Декабрь</option>
+                </select>
+            </td>
+            <td><a href="#" class="xlsx">XLSX</a></td>
+        </tr>
+        <tr class="brush_type_panel">
+            <td>
+                <input type="radio" name="brush_type" value="clean" id="brush_clean"
+                       onchange="setBrushType(this.value)">
+                <label for="brush_clean">Очистить</label>
+            </td>
+            <td>
+                <input type="radio" name="brush_type" value="work" id="brush_work" checked
+                       onchange="setBrushType(this.value)">
+                <label for="brush_work" class='work'>Работа</label>
+            </td>
+            <td>
+                <input type="radio" name="brush_type" value="vacation" id="brush_vacation"
+                       onchange="setBrushType(this.value)">
+                <label for="brush_vacation" class="vacation">Оплачиваемый отпуск</label>
+            </td>
+            <td>
+                <input type="radio" name="brush_type" value="unpaid" id="brush_unpaid"
+                       onchange="setBrushType(this.value)">
+                <label for="brush_unpaid" class="unpaid">Отпуск за свой счет</label>
+            </td>
+            <td>
+                <input type="radio" name="brush_type" value="hospital" id="brush_hospital"
+                       onchange="setBrushType(this.value)">
+                <label for="brush_hospital" class="hospital">Больничный</label>
+            </td>
+        </tr>
+        <tr class="brush_size_panel">
+            <td>
+                <input type="radio" name="brush_size" value="8" id="brush_size_8" checked
+                       onchange="brushSize=this.value">
+                <label for="brush_size_8">8 часов</label>
+            </td>
+            <td>
+                <input type="radio" name="brush_size" value="12" id="brush_size_12" onchange="brushSize=this.value">
+                <label for="brush_size_12">12 часов</label>
+            </td>
+            <td>
+                <input type="radio" name="brush_size" value="24" id="brush_size_24" onchange="brushSize=this.value">
+                <label for="brush_size_24">24 часа</label>
+            </td>
+        </tr>
+        <tr class="last_row">
+            <td></td>
+        </tr>
+        </tbody>
+    </table>
+
+    <table class="schedule_head">
+        <tr>
+            <td rowspan="2" class="user_id">Таб. №</td>
+            <td rowspan="2" class="full_name col_full_name">ФИО</td>
+            <td class="day_of_month col_day1">1</td>
+            <td class="day_of_month col_day2">2</td>
+            <td class="day_of_month col_day3">3</td>
+            <td class="day_of_month col_day4">4</td>
+            <td class="day_of_month col_day5">5</td>
+            <td class="day_of_month col_day6">6</td>
+            <td class="day_of_month col_day7">7</td>
+            <td class="day_of_month col_day8">8</td>
+            <td class="day_of_month col_day9">9</td>
+            <td class="day_of_month col_day10">10</td>
+            <td class="day_of_month col_day11">11</td>
+            <td class="day_of_month col_day12">12</td>
+            <td class="day_of_month col_day13">13</td>
+            <td class="day_of_month col_day14">14</td>
+            <td class="day_of_month col_day15">15</td>
+            <td class="day_of_month col_day16">16</td>
+            <td class="day_of_month col_day17">17</td>
+            <td class="day_of_month col_day18">18</td>
+            <td class="day_of_month col_day19">19</td>
+            <td class="day_of_month col_day20">20</td>
+            <td class="day_of_month col_day21">21</td>
+            <td class="day_of_month col_day22">22</td>
+            <td class="day_of_month col_day23">23</td>
+            <td class="day_of_month col_day24">24</td>
+            <td class="day_of_month col_day25">25</td>
+            <td class="day_of_month col_day26">26</td>
+            <td class="day_of_month col_day27">27</td>
+            <td class="day_of_month col_day28">28</td>
+            <td class="day_of_month col_day29">29</td>
+            <td class="day_of_month col_day30">30</td>
+            <td class="day_of_month col_day31">31</td>
+            <td rowspan="2" class="sum_hours">Факт<br>час</td>
+            <td rowspan="2" class="norm_hours">Норма<br>час</td>
+            <td rowspan="2" class="over_hours">Переработка<br>час</td>
+            <td rowspan="2" class="night_hours">Ночь<br>час</td>
+        </tr>
+        <tr class="day_of_week">
+            <td class="day_of_week col_day1"></td>
+            <td class="day_of_week col_day2"></td>
+            <td class="day_of_week col_day3"></td>
+            <td class="day_of_week col_day4"></td>
+            <td class="day_of_week col_day5"></td>
+            <td class="day_of_week col_day6"></td>
+            <td class="day_of_week col_day7"></td>
+            <td class="day_of_week col_day8"></td>
+            <td class="day_of_week col_day9"></td>
+            <td class="day_of_week col_day10"></td>
+            <td class="day_of_week col_day11"></td>
+            <td class="day_of_week col_day12"></td>
+            <td class="day_of_week col_day13"></td>
+            <td class="day_of_week col_day14"></td>
+            <td class="day_of_week col_day15"></td>
+            <td class="day_of_week col_day16"></td>
+            <td class="day_of_week col_day17"></td>
+            <td class="day_of_week col_day18"></td>
+            <td class="day_of_week col_day19"></td>
+            <td class="day_of_week col_day20"></td>
+            <td class="day_of_week col_day21"></td>
+            <td class="day_of_week col_day22"></td>
+            <td class="day_of_week col_day23"></td>
+            <td class="day_of_week col_day24"></td>
+            <td class="day_of_week col_day25"></td>
+            <td class="day_of_week col_day26"></td>
+            <td class="day_of_week col_day27"></td>
+            <td class="day_of_week col_day28"></td>
+            <td class="day_of_week col_day29"></td>
+            <td class="day_of_week col_day30"></td>
+            <td class="day_of_week col_day31"></td>
+        </tr>
+    </table>
+</div>
+<table class="schedule"></table>
+<table id="loading">
+    <tr>
+        <td align="center" valign="middle">
+            Loading...
+        </td>
+    </tr>
+</table>
+<table id="login">
+    <tr>
+        <td align="center" valign="middle">
+            <table>
+                <tr>
+                    <td colspan="3">Войдите на сайт под своей учетной записью freshdesk</td>
+                </tr>
+                <tr>
+                    <td>Login</td>
+                    <td><input name="login" type="text" tabindex="1"/></td>
+                    <td rowspan="2"><input type="submit" value="Login" tabindex="3" onclick="loginClick()"/></td>
+                </tr>
+                <tr>
+                    <td>Password</td>
+                    <td><input name="password" type="password" tabindex="2"/></td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+<ul id="user_menu">
+    <li><div>График</div>
+        <ul><div>5x8</div></ul>
+        <ul><div>12 день ночь выходной</div></ul>
+        <ul><div>Сутки через трое</div></ul>
+    </li>
+    <li><div>Отпуск</div></li>
+    <li><div>Очистить</div></li>
+</ul>
+
+
+TODO
+<ul>
+    <li>Скопировать неделю на месяц</li>
+    <li>Очистить день</li>
+    <li>Очистить по сотруднику</li>
+    <li>Ошибка: заполнить день, пропустить один день, заполнить третий день, затем заполнить промежуток, удалить
+        третий день. Ожидание удалится весь интервал. Факт отображается удаление третьего дня, но после перезагрузки
+        видно, что удаление не произошло вообще
+    </li>
+    <li>Проверить наложение отпуска одного пользователя на один интервал с разным типом</li>
+    <li>нужна возможность добивать хвост 24-х часовой и 12-ти часовой смены (Обсудить, добавить день предудущего
+        месяца и день следующего )
+    </li>
+    <li>шаблон</li>
+    <li>история</li>
+    <li>вход с помощью аккаунта google</li>
+</ul>
+</body>
+</html>
